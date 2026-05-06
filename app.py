@@ -294,6 +294,53 @@ def extrair_codigo_qr_do_texto(texto_pagina):
     return None
 
 
+
+
+def extrair_nome_do_pdf(texto_pagina):
+    linhas = [str(l).strip() for l in str(texto_pagina).splitlines() if str(l).strip()]
+
+    ignorar = [
+        "JOGOS", "ESCOLARES", "RORAIMA", "WWW", "ATLETA",
+        "TÉCNICO", "TECNICO", "OFICIAL", "CHEFE", "DELEGAÇÃO",
+        "DELEGACAO", "FUTSAL", "VOLEI", "VÔLEI", "ATLETISMO",
+        "CICLISMO", "BADMINTON", "CAFÉ", "CAFE", "ALMOÇO",
+        "ALMOCO", "LANCHE", "JANTA"
+    ]
+
+    for linha in linhas:
+        limpa = limpar_texto(linha)
+
+        if not limpa:
+            continue
+
+        if any(palavra in limpa for palavra in ignorar):
+            continue
+
+        linha_sem_numero = re.sub(r"\b\d{6,20}\b", "", linha).strip()
+
+        if len(linha_sem_numero.split()) >= 2:
+            return linha_sem_numero.upper()
+
+    return "NOME NÃO IDENTIFICADO"
+
+
+def extrair_numero_credencial(texto_pagina):
+    texto_original = str(texto_pagina)
+
+    candidatos = re.findall(r"\b\d{6,20}\b", texto_original)
+
+    if candidatos:
+        return candidatos[0]
+
+    texto_limpo = limpar_texto(texto_pagina)
+    candidatos = re.findall(r"\b\d{6,20}\b", texto_limpo)
+
+    if candidatos:
+        return candidatos[0]
+
+    return ""
+
+
 def montar_categoria(row, col_nome, col_sexo, col_data, linha_excel):
     nome = str(row[col_nome]).strip()
 
@@ -395,7 +442,7 @@ def texto_pagina_fitz(pdf_bytes, pagina_index):
 # PDF / BASE
 # =========================
 
-def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, modo_texto='categoria', somente_primeira_pagina=False):
+def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=False):
     df = pd.read_excel(excel_file)
     df.columns = df.columns.str.strip().str.upper()
 
@@ -404,7 +451,6 @@ def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, modo_texto='ca
     col_data = encontrar_coluna(df, ["DATA NASCIMENTO", "DATA DE NASCIMENTO", "NASCIMENTO", "DATA"])
     col_escola = encontrar_coluna(df, ["ESCOLA"])
     col_cpf = encontrar_coluna(df, ["CPF", "CODIGO", "CÓDIGO", "ID"])
-    col_credencial = encontrar_coluna(df, ["CREDENCIAL", "N CREDENCIAL", "Nº CREDENCIAL", "NUMERO CREDENCIAL", "NÚMERO CREDENCIAL", "NUMERO DA CREDENCIAL", "NÚMERO DA CREDENCIAL", "CODIGO CREDENCIAL", "CÓDIGO CREDENCIAL"])
     col_funcao = encontrar_coluna(df, ["FUNCAO", "FUNÇÃO", "CARGO"])
     col_tipo_usuario = encontrar_coluna(df, ["TIPO USUARIO", "TIPO USUÁRIO", "TIPO"])
     col_funcao = encontrar_coluna(df, ["FUNCAO", "FUNÇÃO", "CARGO"])
@@ -453,9 +499,6 @@ def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, modo_texto='ca
                 linha_excel,
                 texto_pagina
             )
-
-            if str(modo_texto).strip().lower() == "credencial":
-                texto_cracha = montar_credencial(row, col_credencial, linha_excel)
 
         except Exception as e:
             erros.append(str(e))
@@ -861,9 +904,7 @@ def preview():
         pos_y = int(request.form.get("pos_y", 300))
         rotacao = int(request.form.get("rotacao", 90))
         fonte = int(request.form.get("fonte", 10))
-        modo_texto = request.form.get("modo_texto", "categoria")
-
-        pdf_preview = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, modo_texto=modo_texto, somente_primeira_pagina=True)
+        pdf_preview = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=True)
 
         doc = fitz.open(stream=pdf_preview.getvalue(), filetype="pdf")
         page = doc[0]
@@ -886,13 +927,89 @@ def gerar():
         pos_y = int(request.form.get("pos_y", 300))
         rotacao = int(request.form.get("rotacao", 90))
         fonte = int(request.form.get("fonte", 10))
-        modo_texto = request.form.get("modo_texto", "categoria")
-
-        output = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, modo_texto=modo_texto, somente_primeira_pagina=False)
+        output = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=False)
 
         return send_file(output, as_attachment=True, download_name="crachas_final.pdf", mimetype="application/pdf")
     except Exception as e:
         return f"Erro ao gerar PDF:<br><pre>{h(e)}</pre>"
+
+
+@app.route("/gerar-excel-credenciais", methods=["POST"])
+def gerar_excel_credenciais():
+    try:
+        excel = request.files["excel"]
+        pdf = request.files["pdf"]
+
+        df = pd.read_excel(excel)
+        df.columns = df.columns.str.strip().str.upper()
+
+        col_nome = encontrar_coluna(df, ["NOME"])
+        col_cpf = encontrar_coluna(df, ["CPF"])
+
+        if not col_nome:
+            raise Exception("Não encontrei a coluna NOME na planilha.")
+
+        pdf_bytes = pdf.read()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        registros = []
+
+        for i, page in enumerate(reader.pages):
+            texto_pypdf = page.extract_text() or ""
+            texto_fitz = texto_pagina_fitz(pdf_bytes, i)
+            texto_pagina = texto_pypdf + "\n" + texto_fitz
+
+            numero_credencial = extrair_numero_credencial(texto_pagina)
+            nome_lido_pdf = extrair_nome_do_pdf(texto_pagina)
+
+            idx_excel, row = buscar_linha_por_nome(df, texto_pagina, col_nome)
+
+            if row is not None:
+                cpf = ""
+                if col_cpf:
+                    cpf = valor_linha(row, col_cpf, "")
+
+                novo = {
+                    "PAGINA_PDF": i + 1,
+                    "NUMERO_CREDENCIAL": numero_credencial,
+                    "CPF": cpf,
+                    "NOME_LIDO_PDF": nome_lido_pdf,
+                    "STATUS_VINCULO": "ENCONTRADO NA PLANILHA"
+                }
+
+                dados = row.to_dict()
+                for coluna, valor in dados.items():
+                    if coluna not in novo:
+                        novo[coluna] = valor
+
+                registros.append(novo)
+
+            else:
+                registros.append({
+                    "PAGINA_PDF": i + 1,
+                    "NUMERO_CREDENCIAL": numero_credencial,
+                    "CPF": "",
+                    "NOME_LIDO_PDF": nome_lido_pdf,
+                    "STATUS_VINCULO": "NÃO ENCONTRADO NA PLANILHA"
+                })
+
+        df_saida = pd.DataFrame(registros)
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df_saida.to_excel(writer, index=False, sheet_name="Credenciais")
+
+        output.seek(0)
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name="credenciais_extraidas.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        return f"Erro ao gerar Excel de credenciais:<br><pre>{h(e)}</pre>"
 
 
 @app.route("/validar-base", methods=["POST"])
