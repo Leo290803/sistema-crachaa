@@ -10,13 +10,14 @@ body{font-family:Arial;background:#f3f4f6;margin:0}
 .wrap{max-width:1200px;margin:30px auto;display:grid;grid-template-columns:400px 1fr;gap:20px}
 .card{background:white;padding:24px;border-radius:16px;box-shadow:0 5px 20px #0002}
 label{font-weight:bold;display:block;margin-top:16px}
-input{width:100%;margin-top:6px}
-input[type=range]{accent-color:#16a34a}
+input,select{width:100%;margin-top:6px;padding:8px;border:1px solid #ccc;border-radius:8px}
+input[type=range]{accent-color:#16a34a;padding:0}
 button{width:100%;padding:15px;margin-top:20px;border:0;border-radius:10px;background:#16a34a;color:white;font-weight:bold}
-.preview{min-height:560px;display:grid;place-items:center;border:1px solid #ddd;border-radius:14px;background:#f9fafb}
+.preview{min-height:560px;display:grid;place-items:center;border:1px solid #ddd;border-radius:14px;background:#f9fafb;text-align:center;color:#555;font-weight:bold;padding:12px}
 .preview img{max-width:100%}
 .links{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:15px}
 .links a{text-align:center;background:#111827;color:white;text-decoration:none;padding:10px;border-radius:8px;font-weight:bold}
+.info{background:#ecfdf5;border:1px solid #bbf7d0;color:#14532d;padding:10px;border-radius:10px;font-size:13px;margin-top:8px}
 @media(max-width:900px){.wrap{grid-template-columns:1fr}}
 </style>
 </head>
@@ -31,6 +32,16 @@ button{width:100%;padding:15px;margin-top:20px;border:0;border-radius:10px;backg
 <form action="/gerar" method="POST" enctype="multipart/form-data">
 <label>Planilha Excel</label><input type="file" name="excel" id="excel" accept=".xlsx,.xls" required>
 <label>PDF Modelo</label><input type="file" name="pdf" id="pdf" accept=".pdf" required>
+
+<label>O que deseja inserir no crachá?</label>
+<select name="modo_texto" id="modo_texto">
+  <option value="categoria">Categoria do atleta — 12 a 14 / 15 a 17 Masculino/Feminino</option>
+  <option value="credencial">Número da credencial — puxar da planilha</option>
+</select>
+<div class="info" id="infoModo">
+  Modo categoria: usa SEXO + DATA NASCIMENTO para escrever a categoria no crachá.
+</div>
+
 <label>Posição X: <span id="xv">118</span></label><input type="range" min="0" max="700" value="118" name="pos_x" id="pos_x">
 <label>Posição Y: <span id="yv">300</span></label><input type="range" min="0" max="700" value="300" name="pos_y" id="pos_y">
 <label>Rotação: <span id="rv">90</span></label><input type="range" min="0" max="360" value="90" name="rotacao" id="rotacao">
@@ -48,7 +59,21 @@ button{width:100%;padding:15px;margin-top:20px;border:0;border-radius:10px;backg
 <script>
 const excel=document.getElementById('excel'),pdf=document.getElementById('pdf');
 const posX=document.getElementById('pos_x'),posY=document.getElementById('pos_y'),rot=document.getElementById('rotacao'),fonte=document.getElementById('fonte');
-function vals(){xv.textContent=posX.value;yv.textContent=posY.value;rv.textContent=rot.value;fv.textContent=fonte.value}
+const modoTexto=document.getElementById('modo_texto'),infoModo=document.getElementById('infoModo');
+
+function vals(){
+  xv.textContent=posX.value;
+  yv.textContent=posY.value;
+  rv.textContent=rot.value;
+  fv.textContent=fonte.value;
+
+  if(modoTexto.value === "credencial"){
+    infoModo.innerHTML = "Modo credencial: procura na planilha uma coluna chamada CREDENCIAL, Nº CREDENCIAL, NUMERO CREDENCIAL ou CODIGO CREDENCIAL e escreve esse número no PDF.";
+  } else {
+    infoModo.innerHTML = "Modo categoria: usa SEXO + DATA NASCIMENTO para escrever a categoria no crachá.";
+  }
+}
+
 async function preview(){
  vals();
  if(!excel.files.length||!pdf.files.length)return;
@@ -56,6 +81,7 @@ async function preview(){
  let fd=new FormData();
  fd.append('excel',excel.files[0]);fd.append('pdf',pdf.files[0]);
  fd.append('pos_x',posX.value);fd.append('pos_y',posY.value);fd.append('rotacao',rot.value);fd.append('fonte',fonte.value);
+ fd.append('modo_texto',modoTexto.value);
  try{
   let r=await fetch('/preview',{method:'POST',body:fd});
   let d=await r.json();
@@ -63,7 +89,7 @@ async function preview(){
   else{document.getElementById('preview').innerHTML='Erro na pré-visualização:<br>'+d.erro;status.textContent='Erro na pré-visualização.';}
  }catch(e){document.getElementById('preview').innerHTML='Erro ao conectar com o servidor.'}
 }
-[excel,pdf,posX,posY,rot,fonte].forEach(e=>{e.addEventListener('change',preview);e.addEventListener('input',preview)});
+[excel,pdf,posX,posY,rot,fonte,modoTexto].forEach(e=>{e.addEventListener('change',preview);e.addEventListener('input',preview)});
 vals();
 </script>
 </body>
