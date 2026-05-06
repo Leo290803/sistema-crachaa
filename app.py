@@ -310,6 +310,20 @@ def montar_categoria(row, col_nome, col_sexo, col_data, linha_excel):
 
 
 
+def montar_credencial(row, col_credencial, linha_excel):
+    if not col_credencial:
+        raise Exception("Não encontrei a coluna da CREDENCIAL na planilha. Use uma coluna chamada CREDENCIAL, Nº CREDENCIAL, NUMERO CREDENCIAL ou CODIGO CREDENCIAL.")
+
+    valor = valor_linha(row, col_credencial, "")
+    if not valor_valido(valor):
+        raise Exception(f"Linha {linha_excel}: número da credencial vazio ou inválido.")
+
+    if re.fullmatch(r"\d+\.0", str(valor)):
+        valor = str(valor).replace(".0", "")
+
+    return str(valor).strip().upper()
+
+
 def valor_linha(row, coluna, padrao=""):
     if not coluna:
         return padrao
@@ -381,7 +395,7 @@ def texto_pagina_fitz(pdf_bytes, pagina_index):
 # PDF / BASE
 # =========================
 
-def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=False):
+def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, modo_texto='categoria', somente_primeira_pagina=False):
     df = pd.read_excel(excel_file)
     df.columns = df.columns.str.strip().str.upper()
 
@@ -390,6 +404,7 @@ def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, somente_primei
     col_data = encontrar_coluna(df, ["DATA NASCIMENTO", "DATA DE NASCIMENTO", "NASCIMENTO", "DATA"])
     col_escola = encontrar_coluna(df, ["ESCOLA"])
     col_cpf = encontrar_coluna(df, ["CPF", "CODIGO", "CÓDIGO", "ID"])
+    col_credencial = encontrar_coluna(df, ["CREDENCIAL", "N CREDENCIAL", "Nº CREDENCIAL", "NUMERO CREDENCIAL", "NÚMERO CREDENCIAL", "NUMERO DA CREDENCIAL", "NÚMERO DA CREDENCIAL", "CODIGO CREDENCIAL", "CÓDIGO CREDENCIAL"])
     col_funcao = encontrar_coluna(df, ["FUNCAO", "FUNÇÃO", "CARGO"])
     col_tipo_usuario = encontrar_coluna(df, ["TIPO USUARIO", "TIPO USUÁRIO", "TIPO"])
     col_funcao = encontrar_coluna(df, ["FUNCAO", "FUNÇÃO", "CARGO"])
@@ -438,6 +453,10 @@ def criar_pdf(excel_file, pdf_file, pos_x, pos_y, rotacao, fonte, somente_primei
                 linha_excel,
                 texto_pagina
             )
+
+            if str(modo_texto).strip().lower() == "credencial":
+                texto_cracha = montar_credencial(row, col_credencial, linha_excel)
+
         except Exception as e:
             erros.append(str(e))
             continue
@@ -489,6 +508,8 @@ def montar_base_validacao(excel_file, pdf_file):
     col_data = encontrar_coluna(df, ["DATA NASCIMENTO", "DATA DE NASCIMENTO", "NASCIMENTO", "DATA"])
     col_escola = encontrar_coluna(df, ["ESCOLA"])
     col_cpf = encontrar_coluna(df, ["CPF", "CODIGO", "CÓDIGO", "ID"])
+    col_funcao = encontrar_coluna(df, ["FUNCAO", "FUNÇÃO", "CARGO"])
+    col_tipo_usuario = encontrar_coluna(df, ["TIPO USUARIO", "TIPO USUÁRIO", "TIPO"])
 
     pdf_bytes = pdf_file.read()
     reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -840,8 +861,9 @@ def preview():
         pos_y = int(request.form.get("pos_y", 300))
         rotacao = int(request.form.get("rotacao", 90))
         fonte = int(request.form.get("fonte", 10))
+        modo_texto = request.form.get("modo_texto", "categoria")
 
-        pdf_preview = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=True)
+        pdf_preview = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, modo_texto=modo_texto, somente_primeira_pagina=True)
 
         doc = fitz.open(stream=pdf_preview.getvalue(), filetype="pdf")
         page = doc[0]
@@ -864,8 +886,9 @@ def gerar():
         pos_y = int(request.form.get("pos_y", 300))
         rotacao = int(request.form.get("rotacao", 90))
         fonte = int(request.form.get("fonte", 10))
+        modo_texto = request.form.get("modo_texto", "categoria")
 
-        output = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, somente_primeira_pagina=False)
+        output = criar_pdf(excel, pdf, pos_x, pos_y, rotacao, fonte, modo_texto=modo_texto, somente_primeira_pagina=False)
 
         return send_file(output, as_attachment=True, download_name="crachas_final.pdf", mimetype="application/pdf")
     except Exception as e:
