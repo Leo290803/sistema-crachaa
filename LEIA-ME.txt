@@ -1,0 +1,12 @@
+COMO RECRIAR O SISTEMA
+
+1. Extraia esta pasta no computador.
+2. Abra a pasta no VS Code.
+3. No terminal, rode:
+   py -m pip install -r requirements.txt
+4. Depois rode:
+   py app.py
+5. Abra no navegador:
+   http://127.0.0.1:5000
+
+Não abra o arquivo templates/index.html direto. Sempre use http://127.0.0.1:5000
