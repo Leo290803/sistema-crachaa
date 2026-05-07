@@ -934,9 +934,15 @@ def gerar():
         return f"Erro ao gerar PDF:<br><pre>{h(e)}</pre>"
 
 
-@app.route("/gerar-excel-credenciais", methods=["POST"])
+@app.route("/gerar-excel-credenciais", methods=["GET", "POST"])
 def gerar_excel_credenciais():
+    if request.method == "GET":
+        return redirect("/")
+
     try:
+        if "excel" not in request.files or "pdf" not in request.files:
+            raise Exception("Você precisa selecionar a planilha Excel e o PDF antes de gerar.")
+
         excel = request.files["excel"]
         pdf = request.files["pdf"]
 
@@ -960,38 +966,24 @@ def gerar_excel_credenciais():
             texto_pagina = texto_pypdf + "\n" + texto_fitz
 
             numero_credencial = extrair_numero_credencial(texto_pagina)
-            nome_lido_pdf = extrair_nome_do_pdf(texto_pagina)
 
             idx_excel, row = buscar_linha_por_nome(df, texto_pagina, col_nome)
 
-            if row is not None:
-                cpf = ""
-                if col_cpf:
-                    cpf = valor_linha(row, col_cpf, "")
+            cpf = ""
 
-                novo = {
-    "PAGINA_PDF": i + 1,
-    "NUMERO_CREDENCIAL": numero_credencial,
-    "CPF": cpf
-}
+            if row is not None and col_cpf:
+                cpf = valor_linha(row, col_cpf, "")
 
-                dados = row.to_dict()
-                for coluna, valor in dados.items():
-                    if coluna not in novo:
-                        novo[coluna] = valor
-
-                registros.append(novo)
-
-            else:
-                registros.append({
-    "PAGINA_PDF": i + 1,
-    "NUMERO_CREDENCIAL": numero_credencial,
-    "CPF": ""
-})
+            registros.append({
+                "PAGINA_PDF": i + 1,
+                "NUMERO_CREDENCIAL": numero_credencial,
+                "CPF": cpf
+            })
 
         df_saida = pd.DataFrame(registros)
 
         output = io.BytesIO()
+
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df_saida.to_excel(writer, index=False, sheet_name="Credenciais")
 
