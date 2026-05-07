@@ -970,12 +970,10 @@ def gerar_excel_credenciais():
                     cpf = valor_linha(row, col_cpf, "")
 
                 novo = {
-                    "PAGINA_PDF": i + 1,
-                    "NUMERO_CREDENCIAL": numero_credencial,
-                    "CPF": cpf,
-                    "NOME_LIDO_PDF": nome_lido_pdf,
-                    "STATUS_VINCULO": "ENCONTRADO NA PLANILHA"
-                }
+    "PAGINA_PDF": i + 1,
+    "NUMERO_CREDENCIAL": numero_credencial,
+    "CPF": cpf
+}
 
                 dados = row.to_dict()
                 for coluna, valor in dados.items():
@@ -986,12 +984,10 @@ def gerar_excel_credenciais():
 
             else:
                 registros.append({
-                    "PAGINA_PDF": i + 1,
-                    "NUMERO_CREDENCIAL": numero_credencial,
-                    "CPF": "",
-                    "NOME_LIDO_PDF": nome_lido_pdf,
-                    "STATUS_VINCULO": "NÃO ENCONTRADO NA PLANILHA"
-                })
+    "PAGINA_PDF": i + 1,
+    "NUMERO_CREDENCIAL": numero_credencial,
+    "CPF": ""
+})
 
         df_saida = pd.DataFrame(registros)
 
