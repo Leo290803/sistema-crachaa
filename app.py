@@ -941,7 +941,7 @@ def gerar_excel_credenciais():
 
     try:
         if "excel" not in request.files or "pdf" not in request.files:
-            raise Exception("Você precisa selecionar a planilha Excel e o PDF antes de gerar.")
+            raise Exception("Selecione a planilha Excel e o PDF antes de gerar.")
 
         excel = request.files["excel"]
         pdf = request.files["pdf"]
@@ -967,12 +967,16 @@ def gerar_excel_credenciais():
 
             numero_credencial = extrair_numero_credencial(texto_pagina)
 
-            idx_excel, row = buscar_linha_por_nome(df, texto_pagina, col_nome)
-
             cpf = ""
 
-            if row is not None and col_cpf:
-                cpf = valor_linha(row, col_cpf, "")
+            try:
+                idx_excel, row = buscar_linha_por_nome(df, texto_pagina, col_nome)
+
+                if row is not None and col_cpf:
+                    cpf = valor_linha(row, col_cpf, "")
+
+            except Exception:
+                cpf = ""
 
             registros.append({
                 "PAGINA_PDF": i + 1,
@@ -980,7 +984,11 @@ def gerar_excel_credenciais():
                 "CPF": cpf
             })
 
-        df_saida = pd.DataFrame(registros)
+        df_saida = pd.DataFrame(registros, columns=[
+            "PAGINA_PDF",
+            "NUMERO_CREDENCIAL",
+            "CPF"
+        ])
 
         output = io.BytesIO()
 
